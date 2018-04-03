@@ -1,19 +1,26 @@
-const links = [
-    {
-      id: 1,
-      url: 'http://graphql.org/',
-      description: 'The Best Query Language'
-    },
-    {
-      id: 2,
-      url: 'http://dev.apollodata.com',
-      description: 'Awesome GraphQL Client'
-    },
-  ];
+const pubsub = require('../pubsub');
+// const links = [
+//     {
+//       id: 1,
+//       url: 'http://graphql.org/',
+//       description: 'The Best Query Language'
+//     },
+//     {
+//       id: 2,
+//       url: 'http://dev.apollodata.com',
+//       description: 'Awesome GraphQL Client'
+//     },
+//   ];
   
+let createLink = (links,data) => { 
+    return new Promise((resolve, reject) => {
+        links.insert(data, (err, res) => (err ? reject(err) : resolve(res)))
+    })
+}
 module.exports = {
     Query: {
-      allLinks: (_, data, { nedb: { links } }) => {
+        allLinks: (_, data, { nedb: { links } }) => {
+            pubsub.publish('Link', {Link: "查询了link列表"});
         return new Promise((resolve, reject) => {
             links.find({}, (err, res) => (err ? reject(err) : resolve(res)))
         })
@@ -21,10 +28,10 @@ module.exports = {
     },
 
     Mutation: {
-        createLink: (_, data, { nedb: { links } }) => {
-            return new Promise((resolve, reject) => {
-                links.insert(data, (err, res) => (err ? reject(err) : resolve(res)))
-            })
+        createLink: async (_, data, { nedb: { links } }) => {
+            let newLink = await createLink(links,data)
+            pubsub.publish('Link', {Link: {mutation: 'CREATED', node: newLink}});
+            return newLink
         },
         createUser: (_, data, { nedb: { users } }) => {
             const newUser = {
@@ -46,6 +53,11 @@ module.exports = {
             })
         }
     }, 
+    Subscription: {
+        Link: {
+          subscribe: () => pubsub.asyncIterator('Link'),
+        },
+      },
     Link: {
         id: root => root._id || root.id, // 5
         postedBy: ({ postedById }, data, { nedb: { users } }) => {
